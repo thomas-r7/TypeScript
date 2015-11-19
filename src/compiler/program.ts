@@ -36,26 +36,20 @@ namespace ts {
         return normalizePath(referencedFileName);
     }
 
-    function trace(message: DiagnosticMessage, ...args: any[]): void;
-    function trace(message: DiagnosticMessage): void {
-        // 'this' will be bound to the trace method on the host
-        this.trace((<Diagnostic>createCompilerDiagnostic.apply(undefined, arguments)).messageText);
+    function trace(host: ModuleResolutionHost, message: DiagnosticMessage, ...args: any[]): void;
+    function trace(host: ModuleResolutionHost, message: DiagnosticMessage): void {
+        host.trace(formatMessage.apply(undefined, arguments));
     }
 
-    function noTrace(message: DiagnosticMessage, ...args: any[]): void;
-    function noTrace(message: DiagnosticMessage): void {
-    }
-
-    type ModuleResolutionTracer = typeof trace;
-
-    function getTrace(compilerOptions: CompilerOptions, host: ModuleResolutionHost): ModuleResolutionTracer {
-        return compilerOptions.traceModuleResolution && host.trace ? trace.bind(host) : noTrace;
+    function isTraceEnabled(compilerOptions: CompilerOptions, host: ModuleResolutionHost): boolean {
+        return compilerOptions.traceModuleResolution && host.trace !== undefined;
     }
 
     export function resolveModuleName(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
-        const traceWorker = getTrace(compilerOptions, host);
-
-        traceWorker(Diagnostics.Resolving_module_0_from_1, moduleName, containingFile);
+        const traceEnabled = isTraceEnabled(compilerOptions, host);
+        if (traceEnabled) {
+            trace(host, Diagnostics.Resolving_module_0_from_1, moduleName, containingFile);
+        }
 
         let moduleResolution = compilerOptions.moduleResolution;
         if (moduleResolution === undefined) {
@@ -68,10 +62,15 @@ namespace ts {
             else {
                 moduleResolution = ModuleResolutionKind.Classic;
             }
-            traceWorker(Diagnostics.Module_resolution_kind_is_not_specified_using_0, ModuleResolutionKind[moduleResolution]);
+            
+            if (traceEnabled) {
+                trace(host, Diagnostics.Module_resolution_kind_is_not_specified_using_0, ModuleResolutionKind[moduleResolution]);
+            }
         }
         else {
-            traceWorker(Diagnostics.Explicitly_specified_module_resolution_kind_Colon_0, ModuleResolutionKind[moduleResolution]);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Explicitly_specified_module_resolution_kind_Colon_0, ModuleResolutionKind[moduleResolution]);
+            }
         }
 
         let result: ResolvedModuleWithFailedLookupLocations;
@@ -87,11 +86,13 @@ namespace ts {
                 break;
         }
 
-        if (result.resolvedModule) {
-            traceWorker(Diagnostics.Module_name_0_was_successfully_resolved_to_1, moduleName, result.resolvedModule.resolvedFileName);
-        }
-        else {
-            traceWorker(Diagnostics.Module_name_0_was_not_resolved, moduleName);
+        if (traceEnabled) {
+            if (result.resolvedModule) {
+                trace(host, Diagnostics.Module_name_0_was_successfully_resolved_to_1, moduleName, result.resolvedModule.resolvedFileName);
+            }
+            else {
+                trace(host, Diagnostics.Module_name_0_was_not_resolved, moduleName);
+            }
         }
 
         return result;
@@ -174,13 +175,15 @@ namespace ts {
         const baseUrl = options.baseUrl !== undefined ? options.baseUrl : options.inferredBaseUrl;
         Debug.assert(baseUrl !== undefined);
 
-        const traceWorker = getTrace(options, host);
-
+        const traceEnabled = isTraceEnabled(options, host);
+        
         if (isRootedDiskPath(moduleName)) {
-            traceWorker(Diagnostics.Resolving_rooted_module_name_0_use_it_as_a_candidate_location, moduleName);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Resolving_rooted_module_name_0_use_it_as_a_candidate_location, moduleName);
+            }
 
             const failedLookupLocations: string[] = [];
-            const resolvedFileName = loadModuleFromFile(supportedExtensions, moduleName, failedLookupLocations, host, traceWorker);
+            const resolvedFileName = loadModuleFromFile(supportedExtensions, moduleName, failedLookupLocations, host, traceEnabled);
             return {
                 resolvedModule: resolvedFileName ? { resolvedFileName } : undefined,
                 failedLookupLocations
@@ -189,26 +192,34 @@ namespace ts {
 
         if (nameStartsWithDotSlashOrDotDotSlash(moduleName)) {
             // relative name
-            traceWorker(Diagnostics.Resolving_relative_module_name_0, moduleName);
-            return baseUrlResolveRelativeModuleName(moduleName, containingFile, baseUrl, options, host, traceWorker);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Resolving_relative_module_name_0, moduleName);
+            }
+            return baseUrlResolveRelativeModuleName(moduleName, containingFile, baseUrl, options, host, traceEnabled);
         }
         else {
             // non-relative name
-            traceWorker(Diagnostics.Resolving_non_relative_module_name_0, moduleName);
-            return baseUrlResolveNonRelativeModuleName(moduleName, baseUrl, options, host, traceWorker);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Resolving_non_relative_module_name_0, moduleName);
+            }
+            return baseUrlResolveNonRelativeModuleName(moduleName, baseUrl, options, host, traceEnabled);
         }
     }
 
-    function baseUrlResolveRelativeModuleName(moduleName: string, containingFile: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost, traceWorker: ModuleResolutionTracer): ResolvedModuleWithFailedLookupLocations {
+    function baseUrlResolveRelativeModuleName(moduleName: string, containingFile: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost, traceEnabled: boolean): ResolvedModuleWithFailedLookupLocations {
         const failedLookupLocations: string[] = [];
 
         const containingDirectory = getDirectoryPath(containingFile);
         const candidate = normalizePath(combinePaths(containingDirectory, moduleName));
 
-        traceWorker(Diagnostics.Converting_relative_module_name_0_to_absolute_using_1_as_a_base_directory_2, moduleName, containingDirectory, candidate);
+        if (traceEnabled) {
+            trace(host, Diagnostics.Converting_relative_module_name_0_to_absolute_using_1_as_a_base_directory_2, moduleName, containingDirectory, candidate);
+        }
 
         if (options.rootDirs) {
-            traceWorker(Diagnostics.rootDirs_option_is_specified_searching_for_a_longest_matching_prefix);
+            if (traceEnabled) {
+                trace(host, Diagnostics.rootDirs_option_is_specified_searching_for_a_longest_matching_prefix);
+            }
 
             let matchedPrefix: string;
             for (const rootDir of options.rootDirs) {
@@ -222,16 +233,20 @@ namespace ts {
             }
             if (matchedPrefix) {
                 const suffix = candidate.substr(matchedPrefix.length);
-                traceWorker(Diagnostics.Found_longest_matching_rootDir_0_converted_relative_path_1_to_non_relative_path_2, matchedPrefix, moduleName, suffix);
+                if (traceEnabled) {
+                    trace(host, Diagnostics.Found_longest_matching_rootDir_0_converted_relative_path_1_to_non_relative_path_2, matchedPrefix, moduleName, suffix);
+                }
 
-                return baseUrlResolveNonRelativeModuleName(suffix, baseUrl, options, host, traceWorker);
+                return baseUrlResolveNonRelativeModuleName(suffix, baseUrl, options, host, traceEnabled);
             }
             return { resolvedModule: undefined, failedLookupLocations };
         }
         else {
-            traceWorker(Diagnostics.rootDirs_option_is_not_specified_using_0_as_candidate_location, candidate);
+            if (traceEnabled) {
+                trace(host, Diagnostics.rootDirs_option_is_not_specified_using_0_as_candidate_location, candidate);
+            }
 
-            const resolvedFileName = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceWorker);
+            const resolvedFileName = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceEnabled);
             return {
                 resolvedModule: resolvedFileName ? { resolvedFileName } : undefined,
                 failedLookupLocations
@@ -239,14 +254,16 @@ namespace ts {
         }
     }
 
-    function baseUrlResolveNonRelativeModuleName(moduleName: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost, traceWorker: ModuleResolutionTracer): ResolvedModuleWithFailedLookupLocations {
+    function baseUrlResolveNonRelativeModuleName(moduleName: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost, traceEnabled: boolean): ResolvedModuleWithFailedLookupLocations {
         let longestMatchPrefixLength = -1;
         let matchedPattern: string;
         let matchedStar: string;
 
         const failedLookupLocations: string[] = [];
         if (options.paths) {
-            traceWorker(Diagnostics.paths_option_is_specified_looking_for_a_pattern_to_match_module_name_0, moduleName);
+            if (traceEnabled) {
+                trace(host, Diagnostics.paths_option_is_specified_looking_for_a_pattern_to_match_module_name_0, moduleName);
+            }
 
             for (const key in options.paths) {
                 const pattern: string = key;
@@ -276,15 +293,19 @@ namespace ts {
         }
 
         if (matchedPattern) {
-            traceWorker(Diagnostics.Module_name_0_matched_pattern_1, moduleName, matchedPattern);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Module_name_0_matched_pattern_1, moduleName, matchedPattern);
+            }
 
             for (const subst of options.paths[matchedPattern]) {
                 const path = matchedStar ? subst.replace("\*", matchedStar) : subst;
                 const candidate = normalizePath(combinePaths(baseUrl, path));
 
-                traceWorker(Diagnostics.Trying_substitution_0_candidate_module_location_Colon_1, subst, path);
+                if (traceEnabled) {
+                    trace(host, Diagnostics.Trying_substitution_0_candidate_module_location_Colon_1, subst, path);
+                }
 
-                const resolvedFileName = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceWorker);
+                const resolvedFileName = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceEnabled);
                 if (resolvedFileName) {
                     return { resolvedModule: { resolvedFileName }, failedLookupLocations };
                 }
@@ -295,9 +316,11 @@ namespace ts {
         else {
             const candidate = normalizePath(combinePaths(baseUrl, moduleName));
 
-            traceWorker(Diagnostics.Resolving_module_name_0_relative_to_base_url_1_2, moduleName, baseUrl, candidate);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Resolving_module_name_0_relative_to_base_url_1_2, moduleName, baseUrl, candidate);
+            }
 
-            const resolvedFileName = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceWorker);
+            const resolvedFileName = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceEnabled);
             return {
                 resolvedModule: resolvedFileName ? { resolvedFileName } : undefined,
                 failedLookupLocations
@@ -317,54 +340,64 @@ namespace ts {
     export function nodeModuleNameResolver(moduleName: string, containingFile: string, options: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         const containingDirectory = getDirectoryPath(containingFile);
 
-        const traceWorker = getTrace(options, host);
+        const traceEnabled = isTraceEnabled(options, host);
 
         if (isRootedDiskPath(moduleName) || nameStartsWithDotSlashOrDotDotSlash(moduleName)) {
             const failedLookupLocations: string[] = [];
             const candidate = normalizePath(combinePaths(containingDirectory, moduleName));
 
-            traceWorker(Diagnostics.Loading_module_0_as_file_Slash_folder_candidate_module_location_1, moduleName, candidate);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Loading_module_0_as_file_Slash_folder_candidate_module_location_1, moduleName, candidate);
+            }
 
-            let resolvedFileName = loadModuleFromFile(supportedJsExtensions, candidate, failedLookupLocations, host, traceWorker);
+            let resolvedFileName = loadModuleFromFile(supportedJsExtensions, candidate, failedLookupLocations, host, traceEnabled);
 
             if (resolvedFileName) {
                 return { resolvedModule: { resolvedFileName }, failedLookupLocations };
             }
 
-            resolvedFileName = loadNodeModuleFromDirectory(supportedJsExtensions, candidate, failedLookupLocations, host, traceWorker);
+            resolvedFileName = loadNodeModuleFromDirectory(supportedJsExtensions, candidate, failedLookupLocations, host, traceEnabled);
             return resolvedFileName
                 ? { resolvedModule: { resolvedFileName }, failedLookupLocations }
                 : { resolvedModule: undefined, failedLookupLocations };
         }
         else {
-            traceWorker(Diagnostics.Loading_module_0_from_node_modules_folder, moduleName);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Loading_module_0_from_node_modules_folder, moduleName);
+            }
 
-            return loadModuleFromNodeModules(moduleName, containingDirectory, host, traceWorker);
+            return loadModuleFromNodeModules(moduleName, containingDirectory, host, traceEnabled);
         }
     }
 
-    function loadModuleFromFile(extensions: string[], candidate: string, failedLookupLocation: string[], host: ModuleResolutionHost, traceWorker: ModuleResolutionTracer): string {
+    function loadModuleFromFile(extensions: string[], candidate: string, failedLookupLocation: string[], host: ModuleResolutionHost, traceEnabled: boolean): string {
         return forEach(extensions, tryLoad);
 
         function tryLoad(ext: string): string {
             const fileName = fileExtensionIs(candidate, ext) ? candidate : candidate + ext;
 
             if (host.fileExists(fileName)) {
-                traceWorker(Diagnostics.File_0_exist_use_it_as_a_module_resolution_result, fileName);
+                if (traceEnabled) {
+                    trace(host, Diagnostics.File_0_exist_use_it_as_a_module_resolution_result, fileName);
+                }
                 return fileName;
             }
             else {
-                traceWorker(Diagnostics.File_0_does_not_exist, fileName);
+                if (traceEnabled) {
+                    trace(host, Diagnostics.File_0_does_not_exist, fileName);
+                }
                 failedLookupLocation.push(fileName);
                 return undefined;
             }
         }
     }
 
-    function loadNodeModuleFromDirectory(extensions: string[], candidate: string, failedLookupLocation: string[], host: ModuleResolutionHost, traceWorker: ModuleResolutionTracer): string {
+    function loadNodeModuleFromDirectory(extensions: string[], candidate: string, failedLookupLocation: string[], host: ModuleResolutionHost, traceEnabled: boolean): string {
         const packageJsonPath = combinePaths(candidate, "package.json");
         if (host.fileExists(packageJsonPath)) {
-            traceWorker(Diagnostics.Found_package_json_at_0, packageJsonPath);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Found_package_json_at_0, packageJsonPath);
+            }
 
             let jsonContent: { typings?: string };
 
@@ -379,26 +412,32 @@ namespace ts {
 
             if (jsonContent.typings) {
                 const typingsFile = normalizePath(combinePaths(candidate, jsonContent.typings));
-                traceWorker(Diagnostics.package_json_has_typings_field_0_that_references_1, jsonContent.typings, typingsFile);
-                const result = loadModuleFromFile(extensions, typingsFile , failedLookupLocation, host, traceWorker);
+                if (traceEnabled) {
+                    trace(host, Diagnostics.package_json_has_typings_field_0_that_references_1, jsonContent.typings, typingsFile);
+                }
+                const result = loadModuleFromFile(extensions, typingsFile , failedLookupLocation, host, traceEnabled);
                 if (result) {
                     return result;
                 }
             }
             else {
-                traceWorker(Diagnostics.package_json_does_not_have_typings_field);
+                if (traceEnabled) {
+                    trace(host, Diagnostics.package_json_does_not_have_typings_field);
+                }
             }
         }
         else {
-            traceWorker(Diagnostics.package_json_does_not_have_typings_field);
+            if (traceEnabled) {
+                trace(host, Diagnostics.package_json_does_not_have_typings_field);
+            }
             // record package json as one of failed lookup locations - in the future if this file will appear it will invalidate resolution results
             failedLookupLocation.push(packageJsonPath);
         }
 
-        return loadModuleFromFile(extensions, combinePaths(candidate, "index"), failedLookupLocation, host, traceWorker);
+        return loadModuleFromFile(extensions, combinePaths(candidate, "index"), failedLookupLocation, host, traceEnabled);
     }
 
-    function loadModuleFromNodeModules(moduleName: string, directory: string, host: ModuleResolutionHost, traceWorker: ModuleResolutionTracer): ResolvedModuleWithFailedLookupLocations {
+    function loadModuleFromNodeModules(moduleName: string, directory: string, host: ModuleResolutionHost, traceEnabled: boolean): ResolvedModuleWithFailedLookupLocations {
         const failedLookupLocations: string[] = [];
         directory = normalizeSlashes(directory);
         while (true) {
@@ -406,12 +445,12 @@ namespace ts {
             if (baseName !== "node_modules") {
                 const nodeModulesFolder = combinePaths(directory, "node_modules");
                 const candidate = normalizePath(combinePaths(nodeModulesFolder, moduleName));
-                let result = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceWorker);
+                let result = loadModuleFromFile(supportedExtensions, candidate, failedLookupLocations, host, traceEnabled);
                 if (result) {
                     return { resolvedModule: { resolvedFileName: result, isExternalLibraryImport: true }, failedLookupLocations };
                 }
 
-                result = loadNodeModuleFromDirectory(supportedExtensions, candidate, failedLookupLocations, host, traceWorker);
+                result = loadNodeModuleFromDirectory(supportedExtensions, candidate, failedLookupLocations, host, traceEnabled);
                 if (result) {
                     return { resolvedModule: { resolvedFileName: result, isExternalLibraryImport: true }, failedLookupLocations };
                 }
@@ -451,11 +490,13 @@ namespace ts {
 
     export function classicNameResolver(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
 
-        const traceWorker = getTrace(compilerOptions, host);
+        const traceEnabled = isTraceEnabled(compilerOptions, host);
 
         // module names that contain '!' are used to reference resources and are not resolved to actual files on disk
         if (moduleName.indexOf("!") != -1) {
-            traceWorker(Diagnostics.Module_name_0_contains_character, moduleName);
+            if (traceEnabled) {
+                trace(host, Diagnostics.Module_name_0_contains_character, moduleName);
+            }
             return { resolvedModule: undefined, failedLookupLocations: [] };
         }
 
@@ -477,11 +518,15 @@ namespace ts {
 
                 const candidate = searchName + extension;
                 if (host.fileExists(candidate)) {
-                    traceWorker(Diagnostics.File_0_exist_use_it_as_a_module_resolution_result, candidate);
+                    if (traceEnabled) {
+                        trace(host, Diagnostics.File_0_exist_use_it_as_a_module_resolution_result, candidate);
+                    }
                     return candidate;
                 }
                 else {
-                    traceWorker(Diagnostics.File_0_does_not_exist, candidate);
+                    if (traceEnabled) {
+                        trace(host, Diagnostics.File_0_does_not_exist, candidate);
+                    }
                     failedLookupLocations.push(candidate);
                 }
             });

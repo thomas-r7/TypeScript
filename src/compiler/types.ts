@@ -2308,7 +2308,7 @@ namespace ts {
         Message,
     }
 
-    export const enum ModuleResolutionKind {
+    export enum ModuleResolutionKind {
         Classic  = 1,
         NodeJs   = 2,
         BaseUrl  = 3
@@ -2368,6 +2368,7 @@ namespace ts {
         baseUrl?: string;
         paths?: PathSubstitutions;
         rootDirs?: RootPaths;
+        traceModuleResolution?: boolean;
         /* @internal */ stripInternal?: boolean;
 
         // Skip checking lib.d.ts to help speed up tests.
@@ -2378,7 +2379,7 @@ namespace ts {
         [option: string]: string | number | boolean | TsConfigOnlyOptions;
     }
 
-    export const enum ModuleKind {
+    export enum ModuleKind {
         None = 0,
         CommonJS = 1,
         AMD = 2,
@@ -2605,6 +2606,7 @@ namespace ts {
         // readFile function is used to read arbitrary text files on disk, i.e. when resolution procedure needs the content of 'package.json'
         // to determine location of bundled typings for node module
         readFile(fileName: string): string;
+        trace?(s: string): void;
     }
 
     export interface ResolvedModule {

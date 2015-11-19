@@ -2212,10 +2212,10 @@
         "category": "Error",
         "code": 6046
     },
-  "Argument for '--target' option must be 'ES3', 'ES5', or 'ES2015'.": {
-    "category": "Error",
-    "code": 6047
-  },
+    "Argument for '--target' option must be 'ES3', 'ES5', or 'ES2015'.": {
+        "category": "Error",
+        "code": 6047
+    },
     "Locale must be of the form <language> or <language>-<territory>. For example '{0}' or '{1}'.": {
         "category": "Error",
         "code": 6048
@@ -2348,7 +2348,31 @@
     "Base directory to resolve relative module names.": {
         "category": "Message",
         "code": 6083
-    },    
+    },
+    "Enable tracing of the module resolution process.": {
+        "category": "Message",
+        "code": 6084
+    },
+    "Resolving module '{0}' from '{1}'.": {
+        "category": "Message",
+        "code": 6085
+    },
+    "Explicitly specified module resolution kind: '{0}'.": {
+        "category": "Message",
+        "code": 6086
+    },
+    "Module resolution kind is not specified, using '{0}'.": {
+        "category": "Message",
+        "code": 6087
+    },
+    "Module name '{0}' was successfully resolved to '{1}'.": {
+        "category": "Message",
+        "code": 6088
+    },
+    "Module name '{0}' was not resolved.": {
+        "category": "Message",
+        "code": 6089
+    },
     "Variable '{0}' implicitly has an '{1}' type.": {
         "category": "Error",
         "code": 7005

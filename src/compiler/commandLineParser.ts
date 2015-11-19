@@ -301,6 +301,11 @@ namespace ts {
             name: "rootDirs",
             type: "object",
             isTSConfigOnly: true
+        },
+        {
+            name: "traceModuleResolution",
+            type: "boolean",
+            description: Diagnostics.Enable_tracing_of_the_module_resolution_process
         }
     ];
 

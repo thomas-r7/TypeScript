@@ -36,7 +36,27 @@ namespace ts {
         return normalizePath(referencedFileName);
     }
 
+    function trace(message: DiagnosticMessage, ...args: any[]): void;
+    function trace(message: DiagnosticMessage): void {
+        // this will be bound to the trace method on the host
+        this.trace(createCompilerDiagnostic.apply(undefined, arguments));
+    }
+
+    function noTrace(message: DiagnosticMessage, ...args: any[]): void;
+    function noTrace(message: DiagnosticMessage): void {
+    }
+
+    type Trace = typeof trace;
+
+    function getTrace(compilerOptions: CompilerOptions, host: ModuleResolutionHost): Trace {
+        return compilerOptions.traceModuleResolution && host.trace ? trace.bind(host) : noTrace;
+    }
+
     export function resolveModuleName(moduleName: string, containingFile: string, compilerOptions: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+        const traceWorker = getTrace(compilerOptions, host);
+        
+        traceWorker(Diagnostics.Resolving_module_0_from_1, moduleName, containingFile);
+        
         let moduleResolution = compilerOptions.moduleResolution;
         if (moduleResolution === undefined) {
             if (compilerOptions.module === ModuleKind.CommonJS) {
@@ -48,13 +68,33 @@ namespace ts {
             else {
                 moduleResolution = ModuleResolutionKind.Classic;
             }
+            traceWorker(Diagnostics.Module_resolution_kind_is_not_specified_using_0, ModuleResolutionKind[moduleResolution]);
+        }
+        else {
+            traceWorker(Diagnostics.Explicitly_specified_module_resolution_kind_Colon_0, ModuleResolutionKind[moduleResolution]);
         }
 
+        let result: ResolvedModuleWithFailedLookupLocations;
         switch (moduleResolution) {
-            case ModuleResolutionKind.NodeJs: return nodeModuleNameResolver(moduleName, containingFile, host);
-            case ModuleResolutionKind.Classic: return classicNameResolver(moduleName, containingFile, compilerOptions, host);
-            case ModuleResolutionKind.BaseUrl: return baseUrlModuleNameResolver(moduleName, containingFile, compilerOptions, host);
+            case ModuleResolutionKind.NodeJs: 
+                result = nodeModuleNameResolver(moduleName, containingFile, host);
+                break;
+            case ModuleResolutionKind.Classic: 
+                result = classicNameResolver(moduleName, containingFile, compilerOptions, host);
+                break;
+            case ModuleResolutionKind.BaseUrl: 
+                result = baseUrlModuleNameResolver(moduleName, containingFile, compilerOptions, host);
+                break;
         }
+
+        if (result.resolvedModule) {
+            traceWorker(Diagnostics.Module_name_0_was_successfully_resolved_to_1, moduleName, result.resolvedModule.resolvedFileName);
+        }
+        else {
+            traceWorker(Diagnostics.Module_name_0_was_not_resolved, moduleName);
+        }
+
+        return result;
     }
 
     // Path mapping based module resolution strategy uses base url to resolve relative file names. This resolution strategy can be enabled 
@@ -134,13 +174,20 @@ namespace ts {
         const baseUrl = options.baseUrl !== undefined ? options.baseUrl : options.inferredBaseUrl;
         Debug.assert(baseUrl !== undefined);
 
+        const traceWorker = getTrace(options, host);
+
         if (isRootedDiskPath(moduleName)) {
-            return { resolvedModule: { resolvedFileName: moduleName }, failedLookupLocations: emptyArray };
+            let failedLookupLocations: string[] = [];
+            const resolvedFileName = loadModuleFromFile(supportedExtensions, moduleName, failedLookupLocations, host);
+            return {
+                resolvedModule: resolvedFileName ? { resolvedFileName } : undefined,
+                failedLookupLocations
+            };
         }
 
         if (nameStartsWithDotSlashOrDotDotSlash(moduleName)) {
             // relative name
-            return baseUrlResolveRelativeModuleName(moduleName, containingFile, baseUrl, options, host);
+            return baseUrlResolveRelativeModuleName(moduleName, containingFile, baseUrl, options, host, traceWorker);
         }
         else {
             // non-relative name
@@ -148,7 +195,7 @@ namespace ts {
         }
     }
 
-    export function baseUrlResolveRelativeModuleName(moduleName: string, containingFile: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+    function baseUrlResolveRelativeModuleName(moduleName: string, containingFile: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost, traceWorker: Trace): ResolvedModuleWithFailedLookupLocations {
         const failedLookupLocations: string[] = [];
 
         const containingDirectory = getDirectoryPath(containingFile);
@@ -180,7 +227,7 @@ namespace ts {
         }
     }
 
-    export function baseUrlResolveNonRelativeModuleName(moduleName: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
+    function baseUrlResolveNonRelativeModuleName(moduleName: string, baseUrl: string, options: CompilerOptions, host: ModuleResolutionHost): ResolvedModuleWithFailedLookupLocations {
         let longestMatchPrefixLength = -1;
         let matchedPattern: string;
         let matchedStar: string;
@@ -494,7 +541,8 @@ namespace ts {
             getCanonicalFileName,
             getNewLine: () => newLine,
             fileExists: fileName => sys.fileExists(fileName),
-            readFile: fileName => sys.readFile(fileName)
+            readFile: fileName => sys.readFile(fileName),
+            trace: (s: string) => sys.write(s + newLine)
         };
     }
 

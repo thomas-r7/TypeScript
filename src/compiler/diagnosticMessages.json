@@ -2060,25 +2060,33 @@
         "category": "Error",
         "code": 5054
     },
-    "Option '{0}' can only be used when option 'moduleResolution' is 'baseUrl'.": {
+    "Cannot write file '{0}' because it would overwrite input file.": {
         "category": "Error",
         "code": 5055
     },
-    "Pattern '{0}' can have at most one '*' character": {
+    "Cannot write file '{0}' because it would be overwritten by multiple input files.": {
         "category": "Error",
         "code": 5056
-    },
-    "Substitution '{0}' in pattern '{1}' in can have at most one '*' character": {
+    },    
+    "Option '{0}' can only be used when option 'moduleResolution' is 'baseUrl'.": {
         "category": "Error",
         "code": 5057
     },
-    "'moduleResolution' kind 'baseUrl' cannot be used without specifying '--baseUrl' option.": {
+    "Pattern '{0}' can have at most one '*' character": {
         "category": "Error",
         "code": 5058
     },
-    "Module resolution kind cannot be determined automatically. Please specify module resolution explicitly via 'moduleResolution' option.": {
+    "Substitution '{0}' in pattern '{1}' in can have at most one '*' character": {
         "category": "Error",
         "code": 5059
+    },
+    "'moduleResolution' kind 'baseUrl' cannot be used without specifying '--baseUrl' option.": {
+        "category": "Error",
+        "code": 5060
+    },
+    "Module resolution kind cannot be determined automatically. Please specify module resolution explicitly via 'moduleResolution' option.": {
+        "category": "Error",
+        "code": 5061
     },
     "Concatenate and emit output to single file.": {
         "category": "Message",
@@ -2353,7 +2361,7 @@
         "category": "Message",
         "code": 6084
     },
-    "=== Resolving module '{0}' from '{1}'.": {
+    "======== Resolving module '{0}' from '{1}'. ========": {
         "category": "Message",
         "code": 6085
     },
@@ -2365,11 +2373,11 @@
         "category": "Message",
         "code": 6087
     },
-    "=== Module name '{0}' was successfully resolved to '{1}'.": {
+    "======== Module name '{0}' was successfully resolved to '{1}'. ========": {
         "category": "Message",
         "code": 6088
     },
-    "=== Module name '{0}' was not resolved.": {
+    "======== Module name '{0}' was not resolved. ========": {
         "category": "Message",
         "code": 6089
     },
@@ -2448,6 +2456,10 @@
     "Module name '{0}' contains '!' character.": {
         "category": "Message",
         "code": 6108
+    },
+    "Allow javascript files to be compiled.": {
+        "category": "Message",
+        "code": 6109
     },
     "Variable '{0}' implicitly has an '{1}' type.": {
         "category": "Error",

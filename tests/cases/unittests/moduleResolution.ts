@@ -54,7 +54,7 @@ module ts {
     describe("Node module resolution - relative paths", () => {
 
         function testLoadAsFile(containingFileName: string, moduleFileNameNoExt: string, moduleName: string): void {
-            for (let ext of supportedExtensions) {
+            for (let ext of supportedTypeScriptExtensions) {
                 let containingFile = { name: containingFileName }
                 let moduleFile = { name: moduleFileNameNoExt + ext }
                 let resolution = nodeModuleNameResolver(moduleName, containingFile.name, {}, createModuleResolutionHost(containingFile, moduleFile));
@@ -63,7 +63,7 @@ module ts {
 
                 let failedLookupLocations: string[] = [];
                 let dir = getDirectoryPath(containingFileName);
-                for (let e of supportedExtensions) {
+                for (let e of supportedTypeScriptExtensions) {
                     if (e === ext) {
                         break;
                     }
@@ -99,8 +99,8 @@ module ts {
             let resolution = nodeModuleNameResolver(moduleName, containingFile.name, {}, createModuleResolutionHost(containingFile, packageJson, moduleFile));
             assert.equal(resolution.resolvedModule.resolvedFileName, moduleFile.name);
             assert.equal(!!resolution.resolvedModule.isExternalLibraryImport, false);
-            // expect five failed lookup location - attempt to load module as file with all supported extensions
-            assert.equal(resolution.failedLookupLocations.length, 5);
+            // expect three failed lookup location - attempt to load module as file with all supported extensions
+            assert.equal(resolution.failedLookupLocations.length, supportedTypeScriptExtensions.length);
         }
 
         it("module name as directory - load from typings", () => {
@@ -121,8 +121,6 @@ module ts {
                 "/a/b/foo.ts",
                 "/a/b/foo.tsx",
                 "/a/b/foo.d.ts",
-                "/a/b/foo.js",
-                "/a/b/foo.jsx",
                 "/a/b/foo/index.ts",
                 "/a/b/foo/index.tsx",
             ]);

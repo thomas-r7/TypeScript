@@ -332,6 +332,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
     });
 };`;
 
+        const propertyHelper = `
+var __defineProperties = (this && this.__defineProperties) || function (target, propObj) {
+    var keys = Object.keys(propObj);
+    for (var i = 0; i < keys.length; i++)
+    {
+        var key = keys[i];
+        (target[key] = propObj[key])["key"] = key;
+    }
+};`;
+
         const compilerOptions = host.getCompilerOptions();
         const languageVersion = getEmitScriptTarget(compilerOptions);
         const modulekind = getEmitModuleKind(compilerOptions);
@@ -489,6 +499,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
             let decorateEmitted: boolean;
             let paramEmitted: boolean;
             let awaiterEmitted: boolean;
+            let definePropsEmitted: boolean;
             let tempFlags: TempFlags = 0;
             let tempVariables: Identifier[];
             let tempParameters: Identifier[];
@@ -5151,6 +5162,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
             }
 
             function emitMemberFunctionsForES5AndLower(node: ClassLikeDeclaration) {
+                var propObjDeclaredInstance: boolean = false;
+                var propObjDeclaredStatic: boolean = false;
                 forEach(node.members, member => {
                     if (member.kind === SyntaxKind.SemicolonClassElement) {
                         writeLine();
@@ -5177,15 +5190,50 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                     else if (member.kind === SyntaxKind.GetAccessor || member.kind === SyntaxKind.SetAccessor) {
                         const accessors = getAllAccessorDeclarations(node.members, <AccessorDeclaration>member);
                         if (member === accessors.firstAccessor) {
+                            const isStatic: boolean = (member.flags & NodeFlags.Static) == NodeFlags.Static;
+                            const varName = isStatic ? "_propObjStatic" : "_propObj";
+                            
+                            if ((isStatic && !propObjDeclaredStatic) || (!isStatic && !propObjDeclaredInstance)) {
+                                writeLine();
+                                write("var ");
+                                write(varName);
+                                write(" = {};");
+                                isStatic && (propObjDeclaredStatic = true) || (propObjDeclaredInstance = true);
+                            }
                             writeLine();
                             emitStart(member);
-                            write("Object.defineProperty(");
+                            
+                            const memberName = (<AccessorDeclaration>member).name;
+
+                            write(varName);
+                            
+                            if (memberName.kind === SyntaxKind.Identifier)
+                            {
+                                write(".");
+                                emitStart(memberName);
+                                //emitIdentifier((<AccessorDeclaration>member).name);
+                                emitIdentifier(<Identifier>memberName);
+                                //write(memberName.text);
+                                emitEnd(memberName)
+                            }
+                            else
+                            {
+                                emitStart(memberName);
+                                write("[");
+                                emitExpressionForPropertyName(memberName);
+                                write("]");
+                                emitEnd(memberName)
+                            }
+                            write(" = {");
+                            writeLine();
+                            
+                            /*write("Object.defineProperty(");
                             emitStart((<AccessorDeclaration>member).name);
                             emitClassMemberPrefix(node, member);
                             write(", ");
                             emitExpressionForPropertyName((<AccessorDeclaration>member).name);
                             emitEnd((<AccessorDeclaration>member).name);
-                            write(", {");
+                            write(", {");*/
                             increaseIndent();
                             if (accessors.getAccessor) {
                                 writeLine();
@@ -5215,11 +5263,25 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                             write("configurable: true");
                             decreaseIndent();
                             writeLine();
-                            write("});");
+                            //write("});");
+                            write("};");
                             emitEnd(member);
                         }
                     }
                 });
+                if (propObjDeclaredInstance) {
+                     writeLine();
+                     write("__defineProperties(");
+                     emitDeclarationName(node);
+                     write(".prototype");
+                     write(", _propObj);");
+                }
+                if (propObjDeclaredStatic) {
+                     writeLine();
+                     write("__defineProperties(");
+                     emitDeclarationName(node);
+                     write(", _propObjStatic);");
+                }
             }
 
             function emitMemberFunctionsForES6AndHigher(node: ClassLikeDeclaration) {
@@ -7747,6 +7809,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
                     if (!awaiterEmitted && resolver.getNodeCheckFlags(node) & NodeCheckFlags.EmitAwaiter) {
                         writeLines(awaiterHelper);
                         awaiterEmitted = true;
+                    }
+                    
+                    if (!definePropsEmitted && resolver.getNodeCheckFlags(node) & NodeCheckFlags.EmitDefineProps) {
+                        writeLines(propertyHelper);
+                        definePropsEmitted = true;
                     }
                 }
             }

@@ -11052,7 +11052,6 @@ namespace ts {
             checkGrammarDecorators(node) || checkGrammarModifiers(node) || checkGrammarProperty(node) || checkGrammarComputedPropertyName(node.name);
 
             checkVariableLikeDeclaration(node);
-            emitDefineProps = true;
         }
 
         function checkMethodDeclaration(node: MethodDeclaration) {

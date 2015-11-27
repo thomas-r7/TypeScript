@@ -604,6 +604,7 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
                 decorateEmitted = false;
                 paramEmitted = false;
                 awaiterEmitted = false;
+                definePropsEmitted = false;
                 tempFlags = 0;
                 tempVariables = undefined;
                 tempParameters = undefined;

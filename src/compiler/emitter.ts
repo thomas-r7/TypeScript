@@ -338,9 +338,7 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
     for (var i = 0; i < keys.length; i++)
     {
         var key = keys[i];
-        var def = propObj[key];
-        def["key"] = key;
-        Object.defineProperty(target, def);
+        Object.defineProperty(target, key, propObj[key]);
     }
 };`;
 

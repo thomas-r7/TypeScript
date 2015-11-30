@@ -6319,12 +6319,22 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
                 write(getGeneratedNameForNode(enumParent));
                 write("[");
                 write(getGeneratedNameForNode(enumParent));
-                write("[");
-                emitExpressionForPropertyName(node.name);
-                write("] = ");
+                var name = node.name;
+                if (name.kind === SyntaxKind.Identifier)
+                {
+                    write(".");
+                    emitIdentifier(<Identifier>name);
+                    write(" = ");
+                }
+                else
+                {
+                    write("[");
+                    emitExpressionForPropertyName(name);
+                    write("] = ");
+                }
                 writeEnumMemberDeclarationValue(node);
                 write("] = ");
-                emitExpressionForPropertyName(node.name);
+                emitExpressionForPropertyName(name);
                 emitEnd(node);
                 write(";");
             }

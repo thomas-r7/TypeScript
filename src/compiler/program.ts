@@ -99,7 +99,7 @@ namespace ts {
                 jsonContent = { typings: undefined };
             }
 
-            if (jsonContent.typings) {
+            if (typeof jsonContent.typings === "string") {
                 const result = loadNodeModuleFromFile(extensions, normalizePath(combinePaths(candidate, jsonContent.typings)), failedLookupLocation, host);
                 if (result) {
                     return result;
@@ -395,7 +395,7 @@ namespace ts {
             getTypeChecker,
             getClassifiableNames,
             getDiagnosticsProducingTypeChecker,
-            getCommonSourceDirectory: () => commonSourceDirectory,
+            getCommonSourceDirectory,
             emit,
             getCurrentDirectory: () => currentDirectory,
             getNodeCount: () => getDiagnosticsProducingTypeChecker().getNodeCount(),
@@ -410,6 +410,25 @@ namespace ts {
         programTime += new Date().getTime() - start;
 
         return program;
+
+        function getCommonSourceDirectory() {
+            if (typeof commonSourceDirectory === "undefined") {
+                if (options.rootDir && checkSourceFilesBelongToPath(files, options.rootDir)) {
+                    // If a rootDir is specified and is valid use it as the commonSourceDirectory
+                    commonSourceDirectory = getNormalizedAbsolutePath(options.rootDir, currentDirectory);
+                }
+                else {
+                    commonSourceDirectory = computeCommonSourceDirectory(files);
+                }
+                if (commonSourceDirectory && commonSourceDirectory[commonSourceDirectory.length - 1] !== directorySeparator) {
+                    // Make sure directory path ends with directory separator so this string can directly
+                    // used to replace with "" to get the relative path of the source file and the relative path doesn't
+                    // start with / making it rooted path
+                    commonSourceDirectory += directorySeparator;
+                }
+            }
+            return commonSourceDirectory;
+        }
 
         function getClassifiableNames() {
             if (!classifiableNames) {
@@ -642,19 +661,17 @@ namespace ts {
         }
 
         function getSemanticDiagnosticsForFile(sourceFile: SourceFile, cancellationToken: CancellationToken): Diagnostic[] {
-            // For JavaScript files, we don't want to report the normal typescript semantic errors.
-            // Instead, we just report errors for using TypeScript-only constructs from within a
-            // JavaScript file.
-            if (isSourceFileJavaScript(sourceFile)) {
-                return getJavaScriptSemanticDiagnosticsForFile(sourceFile, cancellationToken);
-            }
-
             return runWithCancellationToken(() => {
                 const typeChecker = getDiagnosticsProducingTypeChecker();
 
                 Debug.assert(!!sourceFile.bindDiagnostics);
                 const bindDiagnostics = sourceFile.bindDiagnostics;
-                const checkDiagnostics = typeChecker.getDiagnostics(sourceFile, cancellationToken);
+                // For JavaScript files, we don't want to report the normal typescript semantic errors.
+                // Instead, we just report errors for using TypeScript-only constructs from within a
+                // JavaScript file.
+                const checkDiagnostics = isSourceFileJavaScript(sourceFile) ?
+                    getJavaScriptSemanticDiagnosticsForFile(sourceFile, cancellationToken) :
+                    typeChecker.getDiagnostics(sourceFile, cancellationToken);
                 const fileProcessingDiagnosticsInFile = fileProcessingDiagnostics.getDiagnostics(sourceFile.fileName);
                 const programDiagnosticsInFile = programDiagnostics.getDiagnostics(sourceFile.fileName);
 
@@ -1060,6 +1077,8 @@ namespace ts {
                         const importedFile = findSourceFile(resolution.resolvedFileName, toPath(resolution.resolvedFileName, currentDirectory, getCanonicalFileName), /*isDefaultLib*/ false, file, skipTrivia(file.text, file.imports[i].pos), file.imports[i].end);
 
                         if (importedFile && resolution.isExternalLibraryImport) {
+                            // Since currently irrespective of allowJs, we only look for supportedTypeScript extension external module files,
+                            // this check is ok. Otherwise this would be never true for javascript file
                             if (!isExternalModule(importedFile)) {
                                 const start = getTokenPosOfNode(file.imports[i], file);
                                 fileProcessingDiagnostics.add(createFileDiagnostic(file, start, file.imports[i].end - start, Diagnostics.Exported_external_package_typings_file_0_is_not_a_module_Please_contact_the_package_author_to_update_the_package_definition, importedFile.fileName));
@@ -1215,7 +1234,7 @@ namespace ts {
             else if (firstExternalModuleSourceFile && languageVersion < ScriptTarget.ES6 && !options.module) {
                 // We cannot use createDiagnosticFromNode because nodes do not have parents yet
                 const span = getErrorSpanForNode(firstExternalModuleSourceFile, firstExternalModuleSourceFile.externalModuleIndicator);
-                programDiagnostics.add(createFileDiagnostic(firstExternalModuleSourceFile, span.start, span.length, Diagnostics.Cannot_compile_modules_unless_the_module_flag_is_provided));
+                programDiagnostics.add(createFileDiagnostic(firstExternalModuleSourceFile, span.start, span.length, Diagnostics.Cannot_compile_modules_unless_the_module_flag_is_provided_Consider_setting_the_module_compiler_option_in_a_tsconfig_json_file));
             }
 
             // Cannot specify module gen target of es6 when below es6
@@ -1234,24 +1253,12 @@ namespace ts {
                 options.sourceRoot || // there is --sourceRoot specified
                 options.mapRoot) { // there is --mapRoot specified
 
-                if (options.rootDir && checkSourceFilesBelongToPath(files, options.rootDir)) {
-                    // If a rootDir is specified and is valid use it as the commonSourceDirectory
-                    commonSourceDirectory = getNormalizedAbsolutePath(options.rootDir, currentDirectory);
-                }
-                else {
-                    // Compute the commonSourceDirectory from the input files
-                    commonSourceDirectory = computeCommonSourceDirectory(files);
-                    // If we failed to find a good common directory, but outDir is specified and at least one of our files is on a windows drive/URL/other resource, add a failure
-                    if (options.outDir && commonSourceDirectory === "" && forEach(files, file => getRootLength(file.fileName) > 1)) {
-                            programDiagnostics.add(createCompilerDiagnostic(Diagnostics.Cannot_find_the_common_subdirectory_path_for_the_input_files));
-                    }
-                }
+                // Precalculate and cache the common source directory
+                const dir = getCommonSourceDirectory();
 
-                if (commonSourceDirectory && commonSourceDirectory[commonSourceDirectory.length - 1] !== directorySeparator) {
-                    // Make sure directory path ends with directory separator so this string can directly
-                    // used to replace with "" to get the relative path of the source file and the relative path doesn't
-                    // start with / making it rooted path
-                    commonSourceDirectory += directorySeparator;
+                // If we failed to find a good common directory, but outDir is specified and at least one of our files is on a windows drive/URL/other resource, add a failure
+                if (options.outDir && dir === "" && forEach(files, file => getRootLength(file.fileName) > 1)) {
+                        programDiagnostics.add(createCompilerDiagnostic(Diagnostics.Cannot_find_the_common_subdirectory_path_for_the_input_files));
                 }
             }
 

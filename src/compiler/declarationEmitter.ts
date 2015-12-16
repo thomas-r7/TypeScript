@@ -658,7 +658,7 @@ namespace ts {
             }
             else {
                 write("require(");
-                writeTextOfNode(currentText, getExternalModuleImportEqualsDeclarationExpression(node));
+                emitExternalModuleSpecifier(node);
                 write(");");
             }
             writer.writeLine();
@@ -715,14 +715,23 @@ namespace ts {
                 }
                 write(" from ");
             }
-            emitExternalModuleSpecifier(node.moduleSpecifier);
+            emitExternalModuleSpecifier(node);
             write(";");
             writer.writeLine();
         }
 
-        function emitExternalModuleSpecifier(moduleSpecifier: Expression) {
-            if (moduleSpecifier.kind === SyntaxKind.StringLiteral && isBundledEmit) {
-                const moduleName = getExternalModuleNameFromDeclaration(host, resolver, moduleSpecifier.parent as (ImportEqualsDeclaration | ImportDeclaration | ExportDeclaration));
+        function emitExternalModuleSpecifier(parent: ImportEqualsDeclaration | ImportDeclaration | ExportDeclaration) {
+            let moduleSpecifier: Node;
+            if (parent.kind === SyntaxKind.ImportEqualsDeclaration) {
+                const node = parent as ImportEqualsDeclaration;
+                moduleSpecifier = getExternalModuleImportEqualsDeclarationExpression(node);
+            }
+            else {
+                const node = parent as (ImportDeclaration | ExportDeclaration);
+                moduleSpecifier = node.moduleSpecifier;
+            }
+            if (moduleSpecifier.kind === SyntaxKind.StringLiteral && isBundledEmit && (compilerOptions.out || compilerOptions.outFile)) {
+                const moduleName = getExternalModuleNameFromDeclaration(host, resolver, parent);
                 if (moduleName) {
                     write("\"");
                     write(moduleName);
@@ -765,7 +774,7 @@ namespace ts {
             }
             if (node.moduleSpecifier) {
                 write(" from ");
-                emitExternalModuleSpecifier(node.moduleSpecifier);
+                emitExternalModuleSpecifier(node);
             }
             write(";");
             writer.writeLine();
@@ -1300,6 +1309,9 @@ namespace ts {
         }
 
         function emitSignatureDeclaration(node: SignatureDeclaration) {
+            const prevEnclosingDeclaration = enclosingDeclaration;
+            enclosingDeclaration = node;
+
             // Construct signature or constructor type write new Signature
             if (node.kind === SyntaxKind.ConstructSignature || node.kind === SyntaxKind.ConstructorType) {
                 write("new ");
@@ -1311,9 +1323,6 @@ namespace ts {
             else {
                 write("(");
             }
-
-            const prevEnclosingDeclaration = enclosingDeclaration;
-            enclosingDeclaration = node;
 
             // Parameters
             emitCommaList(node.parameters, emitParameterDeclaration);
@@ -1666,7 +1675,7 @@ namespace ts {
     /* @internal */
     export function writeDeclarationFile(declarationFilePath: string, sourceFiles: SourceFile[], isBundledEmit: boolean, host: EmitHost, resolver: EmitResolver, emitterDiagnostics: DiagnosticCollection) {
         const emitDeclarationResult = emitDeclarations(host, resolver, emitterDiagnostics, declarationFilePath, sourceFiles, isBundledEmit);
-        const emitSkipped = emitDeclarationResult.reportedDeclarationError || host.isEmitBlocked(declarationFilePath);
+        const emitSkipped = emitDeclarationResult.reportedDeclarationError || host.isEmitBlocked(declarationFilePath) || host.getCompilerOptions().noEmit;
         if (!emitSkipped) {
             const declarationOutput = emitDeclarationResult.referencePathsOutput
                 + getDeclarationOutput(emitDeclarationResult.synchronousDeclarationOutput, emitDeclarationResult.moduleElementDeclarationEmitInfo);

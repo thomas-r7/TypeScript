@@ -2046,7 +2046,6 @@ namespace ts {
         EmitParam                   = 0x00000020,  // Emit __param helper for decorators
         EmitAwaiter                 = 0x00000040,  // Emit __awaiter
         EmitGenerator               = 0x00000080,  // Emit __generator
-        EmitDefineProps             = 0x00020000,  // Emit __defineProperties
         SuperInstance               = 0x00000100,  // Instance 'super' reference
         SuperStatic                 = 0x00000200,  // Static 'super' reference
         ContextChecked              = 0x00000400,  // Contextual types have been assigned

@@ -304,6 +304,14 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __multiDecorate = (this && this.__multiDecorate) || function(map) {
+    var keys = Object.keys(map);
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var obj = map[key];
+        __decorate(obj.decorators, obj.target, key, obj.desc);
+    }
 };`;
 
         // emit output for the __metadata helper function
@@ -331,16 +339,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, Promi
         }
         step("next", void 0);
     });
-};`;
-
-        const propertyHelper = `
-var __defineProperties = (this && this.__defineProperties) || function (target, propObj) {
-    var keys = Object.keys(propObj);
-    for (var i = 0; i < keys.length; i++)
-    {
-        var key = keys[i];
-        Object.defineProperty(target, key, propObj[key]);
-    }
 };`;
 
         const compilerOptions = host.getCompilerOptions();
@@ -503,7 +501,6 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
             let decorateEmitted: boolean;
             let paramEmitted: boolean;
             let awaiterEmitted: boolean;
-            let definePropsEmitted: boolean;
             let tempFlags: TempFlags = 0;
             let tempVariables: Identifier[];
             let tempParameters: Identifier[];
@@ -579,7 +576,6 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
                 decorateEmitted = false;
                 paramEmitted = false;
                 awaiterEmitted = false;
-                definePropsEmitted = false;
                 tempFlags = 0;
                 tempVariables = undefined;
                 tempParameters = undefined;
@@ -4874,14 +4870,14 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
                 });
                 if (propObjDeclaredInstance) {
                      writeLine();
-                     write("__defineProperties(");
+                     write("Object.defineProperties(");
                      emitDeclarationName(node);
                      write(".prototype");
                      write(", _propObj);");
                 }
                 if (propObjDeclaredStatic) {
                      writeLine();
-                     write("__defineProperties(");
+                     write("Object.defineProperties(");
                      emitDeclarationName(node);
                      write(", _propObjStatic);");
                 }
@@ -5398,6 +5394,8 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
             }
 
             function emitDecoratorsOfMembers(node: ClassLikeDeclaration, staticFlag: NodeFlags) {
+                var decorateVarEmitted = false;
+                const decorateVarName = "decorateObj";
                 for (const member of node.members) {
                     // only emit members in the correct group
                     if ((member.flags & NodeFlags.Static) !== staticFlag) {
@@ -5472,10 +5470,48 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
                     //       dec
                     //   ], C.prototype, "prop");
                     //
+                    
+                    if (!decorateVarEmitted)
+                    {
+                        decorateVarEmitted = true;
+                        write("var ");
+                        write(decorateVarName);
+                        write(" = {};");
+                        writeLine();
+                    }
 
                     writeLine();
                     emitStart(decorators || firstParameterDecorator);
-                    write("__decorate([");
+                    //write("__decorate([");
+                    write(decorateVarName);
+                    
+                    const memberName = (<AccessorDeclaration>member).name;
+                    
+                    if (memberName.kind === SyntaxKind.Identifier)
+                    {
+                        write(".");
+                        emitStart(memberName);
+                        //emitIdentifier((<AccessorDeclaration>member).name);
+                        emitIdentifier(<Identifier>memberName);
+                        //write(memberName.text);
+                        emitEnd(memberName)
+                    }
+                    else
+                    {
+                        emitStart(memberName);
+                        write("[");
+                        emitExpressionForPropertyName(memberName);
+                        write("]");
+                        emitEnd(memberName)
+                    }
+                    
+                    write(" = {");
+                    
+                    increaseIndent();
+                    writeLine();
+                    
+                    write("decorators: [");
+                    
                     increaseIndent();
                     writeLine();
 
@@ -5490,27 +5526,41 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
 
                     decreaseIndent();
                     writeLine();
-                    write("], ");
+                    write("],");
+                    writeLine();
+                    
+                    write("target: ");
                     emitClassMemberPrefix(node, member);
-                    write(", ");
-                    emitExpressionForPropertyName(member.name);
+                    write(",");
+                    writeLine();
+                    
+                    write("desc: ");
 
                     if (languageVersion > ScriptTarget.ES3) {
                         if (member.kind !== SyntaxKind.PropertyDeclaration) {
                             // We emit `null` here to indicate to `__decorate` that it can invoke `Object.getOwnPropertyDescriptor` directly.
                             // We have this extra argument here so that we can inject an explicit property descriptor at a later date.
-                            write(", null");
+                            write("null");
                         }
                         else {
                             // We emit `void 0` here to indicate to `__decorate` that it can invoke `Object.defineProperty` directly, but that it
                             // should not invoke `Object.getOwnPropertyDescriptor`.
-                            write(", void 0");
+                            write("void 0");
                         }
                     }
-
-                    write(")");
+                    
+                    decreaseIndent();
+                    writeLine();
+                    write("}");
                     emitEnd(decorators || firstParameterDecorator);
                     write(";");
+                    writeLine();
+                }
+                if (decorateVarEmitted)
+                {
+                    write("__multiDecorate(");
+                    write(decorateVarName);
+                    write(");");
                     writeLine();
                 }
             }
@@ -7426,11 +7476,6 @@ var __defineProperties = (this && this.__defineProperties) || function (target, 
                     if (!awaiterEmitted && resolver.getNodeCheckFlags(node) & NodeCheckFlags.EmitAwaiter) {
                         writeLines(awaiterHelper);
                         awaiterEmitted = true;
-                    }
-                    
-                    if (!definePropsEmitted && resolver.getNodeCheckFlags(node) & NodeCheckFlags.EmitDefineProps) {
-                        writeLines(propertyHelper);
-                        definePropsEmitted = true;
                     }
                 }
             }

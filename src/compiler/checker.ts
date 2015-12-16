@@ -170,7 +170,6 @@ namespace ts {
         let emitExtends = false;
         let emitDecorate = false;
         let emitParam = false;
-        let emitDefineProps = false;
         let emitAwaiter = false;
         const emitGenerator = false;
 
@@ -11413,11 +11412,6 @@ namespace ts {
         }
 
         function checkAccessorDeclaration(node: AccessorDeclaration) {
-            if (node.kind === SyntaxKind.GetAccessor || node.kind === SyntaxKind.SetAccessor) {
-                if (!emitDefineProps) {
-                    emitDefineProps = true;
-                }
-            }
             if (produceDiagnostics) {
                 // Grammar checking accessors
                 checkGrammarFunctionLikeDeclaration(node) || checkGrammarAccessor(node) || checkGrammarComputedPropertyName(node.name);
@@ -14572,7 +14566,6 @@ namespace ts {
                 emitExtends = false;
                 emitDecorate = false;
                 emitParam = false;
-                emitDefineProps = false;
                 emitAwaiter = false;
                 potentialThisCollisions.length = 0;
 
@@ -14600,10 +14593,6 @@ namespace ts {
 
                 if (emitParam) {
                     links.flags |= NodeCheckFlags.EmitParam;
-                }
-                
-                if (emitDefineProps) {
-                    links.flags |= NodeCheckFlags.EmitDefineProps;
                 }
 
                 if (emitAwaiter) {

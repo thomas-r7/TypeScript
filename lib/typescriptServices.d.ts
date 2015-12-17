@@ -361,10 +361,14 @@ declare namespace ts {
     }
     enum JsxFlags {
         None = 0,
+        /** An element from a named property of the JSX.IntrinsicElements interface */
         IntrinsicNamedElement = 1,
+        /** An element inferred from the string index signature of the JSX.IntrinsicElements interface */
         IntrinsicIndexedElement = 2,
-        ClassElement = 4,
-        UnknownElement = 8,
+        /** An element backed by a class, class-like, or function value */
+        ValueElement = 4,
+        /** Element resolution failed */
+        UnknownElement = 16,
         IntrinsicElement = 3,
     }
     interface Node extends TextRange {
@@ -447,6 +451,7 @@ declare namespace ts {
         name: PropertyName;
         questionToken?: Node;
         type?: TypeNode;
+        initializer?: Expression;
     }
     interface PropertyDeclaration extends ClassElement {
         questionToken?: Node;
@@ -534,6 +539,9 @@ declare namespace ts {
     interface TypeNode extends Node {
         _typeNodeBrand: any;
     }
+    interface ThisTypeNode extends TypeNode {
+        _thisTypeNodeBrand: any;
+    }
     interface FunctionOrConstructorTypeNode extends TypeNode, SignatureDeclaration {
         _functionOrConstructorTypeNodeBrand: any;
     }
@@ -546,7 +554,7 @@ declare namespace ts {
         typeArguments?: NodeArray<TypeNode>;
     }
     interface TypePredicateNode extends TypeNode {
-        parameterName: Identifier;
+        parameterName: Identifier | ThisTypeNode;
         type: TypeNode;
     }
     interface TypeQueryNode extends TypeNode {
@@ -1156,7 +1164,7 @@ declare namespace ts {
     interface SymbolDisplayBuilder {
         buildTypeDisplay(type: Type, writer: SymbolWriter, enclosingDeclaration?: Node, flags?: TypeFormatFlags): void;
         buildSymbolDisplay(symbol: Symbol, writer: SymbolWriter, enclosingDeclaration?: Node, meaning?: SymbolFlags, flags?: SymbolFormatFlags): void;
-        buildSignatureDisplay(signatures: Signature, writer: SymbolWriter, enclosingDeclaration?: Node, flags?: TypeFormatFlags): void;
+        buildSignatureDisplay(signatures: Signature, writer: SymbolWriter, enclosingDeclaration?: Node, flags?: TypeFormatFlags, kind?: SignatureKind): void;
         buildParameterDisplay(parameter: Symbol, writer: SymbolWriter, enclosingDeclaration?: Node, flags?: TypeFormatFlags): void;
         buildTypeParameterDisplay(tp: TypeParameter, writer: SymbolWriter, enclosingDeclaration?: Node, flags?: TypeFormatFlags): void;
         buildTypeParameterDisplayFromSymbol(symbol: Symbol, writer: SymbolWriter, enclosingDeclaraiton?: Node, flags?: TypeFormatFlags): void;
@@ -1195,10 +1203,20 @@ declare namespace ts {
         WriteTypeParametersOrArguments = 1,
         UseOnlyExternalAliasing = 2,
     }
+    enum TypePredicateKind {
+        This = 0,
+        Identifier = 1,
+    }
     interface TypePredicate {
+        kind: TypePredicateKind;
+        type: Type;
+    }
+    interface ThisTypePredicate extends TypePredicate {
+        _thisTypePredicateBrand: any;
+    }
+    interface IdentifierTypePredicate extends TypePredicate {
         parameterName: string;
         parameterIndex: number;
-        type: Type;
     }
     enum SymbolFlags {
         None = 0,
@@ -1300,6 +1318,7 @@ declare namespace ts {
         ESSymbol = 16777216,
         ThisType = 33554432,
         ObjectLiteralPatternWithComputedProperties = 67108864,
+        PredicateType = 134217728,
         StringLike = 258,
         NumberLike = 132,
         ObjectType = 80896,
@@ -1311,6 +1330,9 @@ declare namespace ts {
         flags: TypeFlags;
         symbol?: Symbol;
         pattern?: DestructuringPattern;
+    }
+    interface PredicateType extends Type {
+        predicate: ThisTypePredicate | IdentifierTypePredicate;
     }
     interface StringLiteralType extends Type {
         text: string;
@@ -1357,7 +1379,6 @@ declare namespace ts {
         declaration: SignatureDeclaration;
         typeParameters: TypeParameter[];
         parameters: Symbol[];
-        typePredicate?: TypePredicate;
     }
     enum IndexKind {
         String = 0,
@@ -1444,6 +1465,7 @@ declare namespace ts {
         noImplicitReturns?: boolean;
         noFallthroughCasesInSwitch?: boolean;
         forceConsistentCasingInFileNames?: boolean;
+        allowSyntheticDefaultImports?: boolean;
         allowJs?: boolean;
         [option: string]: string | number | boolean;
     }
